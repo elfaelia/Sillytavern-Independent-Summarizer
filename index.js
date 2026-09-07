@@ -2,7 +2,7 @@
 import { eventSource, event_types, extension_prompt_roles, extension_prompt_types, saveSettingsDebounced, setExtensionPrompt } from '../../../../script.js';
 import { extension_settings, getContext, renderExtensionTemplateAsync } from '../../../extensions.js';
 import { ConnectionManagerRequestService } from '../../shared.js';
-import { createEmptyState, getPendingBatches, normaliseChat, reconcileState, renderSummaryTemplate, signatureForMessages } from './core.js';
+import { createEmptyState, getInitialStartIndex, getPendingBatches, normaliseChat, reconcileState, renderSummaryTemplate, signatureForMessages } from './core.js';
 
 export const MODULE_NAME = 'independent_summarizer';
 const PROMPT_ID = 'independent_summarizer_memory';
@@ -19,7 +19,7 @@ Do not continue the scene or speak to the player. Describe violent, sexual, dist
 Aim for roughly {{words}} words. Return only the complete updated continuity summary.`;
 
 const defaults = {
-    profileId: '', targetWords: 350, maxTokens: 900, maxMessages: 40, autoEvery: 0,
+    profileId: '', targetWords: 350, maxTokens: 900, maxMessages: 40, initialLookback: 0, maxBatchesPerRun: 0, autoEvery: 0,
     inject: true, injectionDepth: 4, prompt: defaultPrompt, template: '[Story memory:\n{{summary}}]',
 };
 
@@ -82,11 +82,13 @@ function refreshUi() {
     if (!context.chatId) {
         setStatus('Open a chat to create or inject a summary.');
     } else if (state.stale) {
-        setStatus(`${state.staleReason} The next summary run will rebuild from the beginning.`, 'warning');
+        const rebuildScope = Number(settings().initialLookback) > 0 ? `the latest ${Number(settings().initialLookback)} messages` : 'the beginning';
+        setStatus(`${state.staleReason} The next summary run will rebuild from ${rebuildScope}.`, 'warning');
     } else {
         const waiting = Math.max(0, messages.length - state.coveredCount);
+        const covered = Math.max(0, state.coveredCount - (state.coveredStart || 0));
         const timestamp = state.updatedAt ? ` Last updated ${new Date(state.updatedAt).toLocaleString()}.` : '';
-        setStatus(`Covers ${state.coveredCount} of ${messages.length} messages; ${waiting} waiting.${timestamp}`);
+        setStatus(`Summary contains ${covered} messages; ${waiting} new messages waiting.${timestamp}`);
     }
     updateInjection(state);
 }
@@ -132,10 +134,10 @@ function cleanModelResponse(response) {
     return text;
 }
 
-async function saveCheckpoint(context, summary, coveredCount, messages) {
+async function saveCheckpoint(context, summary, coveredStart, coveredCount, messages) {
     const state = {
-        ...createEmptyState(), summary: summary.trim(), coveredCount,
-        coveredSignature: signatureForMessages(messages.slice(0, coveredCount)), updatedAt: Date.now(),
+        ...createEmptyState(), summary: summary.trim(), coveredStart, coveredCount,
+        coveredSignature: signatureForMessages(messages.slice(coveredStart, coveredCount)), updatedAt: Date.now(),
     };
     await persistState(context, state);
     refreshUi();
@@ -167,7 +169,7 @@ async function migratePrototypeState() {
     const allMessages = getMessages(context);
     const sourceLimit = Number.isInteger(Number(legacy.coveredUntil)) ? Number(legacy.coveredUntil) : legacyIndex;
     const coveredCount = allMessages.filter(message => message.sourceIndex <= sourceLimit).length;
-    await saveCheckpoint(context, String(legacy.text), coveredCount, allMessages);
+    await saveCheckpoint(context, String(legacy.text), 0, coveredCount, allMessages);
     for (const message of context.chat || []) {
         if (message?.extra?.[MODULE_NAME]) delete message.extra[MODULE_NAME];
     }
@@ -186,12 +188,14 @@ async function executeSummary({ automatic = false } = {}) {
 
     const state = reconcileState(getState(context), allMessages).state;
     let summary = state.stale ? '' : state.summary;
-    let coveredCount = state.stale ? 0 : state.coveredCount;
-    let batches = getPendingBatches(allMessages, coveredCount, config.maxMessages);
+    let coveredStart = state.stale || !state.summary ? getInitialStartIndex(allMessages.length, config.initialLookback) : state.coveredStart;
+    let coveredCount = state.stale || !state.summary ? coveredStart : state.coveredCount;
+    let batches = getPendingBatches(allMessages, coveredCount, config.maxMessages, config.maxBatchesPerRun);
     if (!automatic && !batches.length) {
         summary = '';
-        coveredCount = 0;
-        batches = getPendingBatches(allMessages, 0, config.maxMessages);
+        coveredStart = getInitialStartIndex(allMessages.length, config.initialLookback);
+        coveredCount = coveredStart;
+        batches = getPendingBatches(allMessages, coveredCount, config.maxMessages, config.maxBatchesPerRun);
     }
     if (!batches.length) return { updated: false, batches: 0 };
 
@@ -212,12 +216,12 @@ async function executeSummary({ automatic = false } = {}) {
         if (!nextSummary) throw new Error('The summary model returned an empty response.');
         if (currentContextKey() !== contextKey) throw new DOMException('Chat changed', 'AbortError');
         const nextCoveredCount = coveredCount + batches[index].length;
-        const expectedPrefix = signatureForMessages(allMessages.slice(0, nextCoveredCount));
-        const currentPrefix = signatureForMessages(getMessages(context).slice(0, nextCoveredCount));
+        const expectedPrefix = signatureForMessages(allMessages.slice(coveredStart, nextCoveredCount));
+        const currentPrefix = signatureForMessages(getMessages(context).slice(coveredStart, nextCoveredCount));
         if (expectedPrefix !== currentPrefix) throw new DOMException('Chat changed during summarization', 'AbortError');
         summary = nextSummary;
         coveredCount = nextCoveredCount;
-        await saveCheckpoint(context, summary, coveredCount, allMessages);
+        await saveCheckpoint(context, summary, coveredStart, coveredCount, allMessages);
         completed++;
     }
     return { updated: true, batches: completed };
@@ -260,7 +264,8 @@ async function saveEditedSummary() {
     if (!text) return clearSummary();
     const messages = getMessages(context);
     const state = reconcileState(getState(context), messages).state;
-    await saveCheckpoint(context, text, state.stale ? 0 : state.coveredCount, messages);
+    const coveredStart = state.stale ? getInitialStartIndex(messages.length, settings().initialLookback) : state.coveredStart;
+    await saveCheckpoint(context, text, coveredStart, state.stale ? coveredStart : state.coveredCount, messages);
     toastr.success('Edited summary saved.', 'Independent Summarizer');
 }
 
@@ -318,7 +323,7 @@ async function renderSettings() {
     const html = await renderExtensionTemplateAsync(extensionName(), 'settings');
     host.insertAdjacentHTML('beforeend', html);
     const config = settings();
-    for (const [id, value] of Object.entries({ is_prompt: config.prompt, is_words: config.targetWords, is_tokens: config.maxTokens, is_max_messages: config.maxMessages, is_auto_every: config.autoEvery, is_template: config.template, is_depth: config.injectionDepth })) {
+    for (const [id, value] of Object.entries({ is_prompt: config.prompt, is_words: config.targetWords, is_tokens: config.maxTokens, is_max_messages: config.maxMessages, is_initial_lookback: config.initialLookback, is_max_batches: config.maxBatchesPerRun, is_auto_every: config.autoEvery, is_template: config.template, is_depth: config.injectionDepth })) {
         document.getElementById(id).value = value;
     }
     document.getElementById('is_inject').checked = config.inject;
@@ -328,6 +333,8 @@ async function renderSettings() {
     bindSetting('is_words', 'input', 'targetWords', element => Number(element.value));
     bindSetting('is_tokens', 'input', 'maxTokens', element => Number(element.value));
     bindSetting('is_max_messages', 'input', 'maxMessages', element => Number(element.value));
+    bindSetting('is_initial_lookback', 'input', 'initialLookback', element => Number(element.value));
+    bindSetting('is_max_batches', 'input', 'maxBatchesPerRun', element => Number(element.value));
     bindSetting('is_auto_every', 'input', 'autoEvery', element => Number(element.value));
     bindSetting('is_inject', 'change', 'inject', element => element.checked);
     bindSetting('is_template', 'input', 'template', element => element.value);
