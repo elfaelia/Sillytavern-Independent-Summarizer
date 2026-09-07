@@ -1,0 +1,52 @@
+<div id="independent_summarizer_settings" class="extension_container">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b>Independent Summarizer</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content">
+            <p class="is_hint">Builds evolving story memory with a separate Connection Profile. It does not send the active roleplay preset, character card, Author's Note, World Info, or other extension prompts.</p>
+            <label for="is_profile">Summarization Connection Profile</label>
+            <div class="is_row">
+                <select id="is_profile" class="text_pole flex1"></select>
+                <button id="is_refresh_profiles" class="menu_button" type="button" title="Refresh Connection Profiles"><i class="fa-solid fa-rotate"></i></button>
+            </div>
+            <label for="is_prompt">Summarization prompt</label>
+            <textarea id="is_prompt" class="text_pole textarea_compact" rows="9"></textarea>
+            <div class="is_grid">
+                <label for="is_words">Target summary words
+                    <input id="is_words" class="text_pole" type="number" min="50" max="3000" step="25">
+                </label>
+                <label for="is_tokens">Max output tokens
+                    <input id="is_tokens" class="text_pole" type="number" min="64" max="32768" step="64">
+                </label>
+                <label for="is_max_messages">Messages per request
+                    <input id="is_max_messages" class="text_pole" type="number" min="0" max="1000" step="1">
+                    <small>0 sends all waiting messages in one request.</small>
+                </label>
+                <label for="is_auto_every">Auto-update after N new messages
+                    <input id="is_auto_every" class="text_pole" type="number" min="0" max="1000" step="1">
+                    <small>0 disables automatic updates.</small>
+                </label>
+            </div>
+            <label class="checkbox_label" for="is_inject">
+                <input id="is_inject" type="checkbox">
+                <span>Inject the current summary into roleplay context</span>
+            </label>
+            <label for="is_template">Injection template</label>
+            <textarea id="is_template" class="text_pole textarea_compact" rows="3"></textarea>
+            <small>Use <code>{{summary}}</code> where the current summary should appear.</small>
+            <label for="is_depth">Injection depth</label>
+            <input id="is_depth" class="text_pole" type="number" min="0" max="100" step="1">
+            <div class="is_buttons">
+                <button id="is_summarize_now" class="menu_button" type="button"><i class="fa-solid fa-wand-magic-sparkles"></i> Summarize now</button>
+                <button id="is_save_edit" class="menu_button" type="button"><i class="fa-solid fa-floppy-disk"></i> Save edited summary</button>
+                <button id="is_clear" class="menu_button" type="button"><i class="fa-solid fa-trash"></i> Clear</button>
+            </div>
+            <div id="is_status" class="is_status" role="status"></div>
+            <label for="is_summary">Current summary</label>
+            <textarea id="is_summary" class="text_pole textarea_compact" rows="11" placeholder="No independent summary yet."></textarea>
+            <p class="is_hint">For OpenRouter, create a Chat Completion Connection Profile using OpenRouter and the model you want, select it here, then return your normal roleplay connection to Claude.</p>
+        </div>
+    </div>
+</div>
