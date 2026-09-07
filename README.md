@@ -8,6 +8,7 @@ The summarization request sends only the extension's prompt, the previously save
 
 - Dedicated Connection Profile/model for summaries
 - Manual **Summarize now** and optional automatic updates
+- Simple manual mode: one click, one request, with a changeable message limit
 - Oldest-first, resumable batching for long chats and first-run backlogs
 - Optional initial/rebuild lookback, so an existing chat can start from only its latest messages
 - Maximum requests per run as a provider-cost guardrail
@@ -40,7 +41,9 @@ You may leave SillyTavern's built-in Summarize extension disabled to avoid injec
 
 ## Continuity and batching
 
-By default, the first run starts at the oldest usable chat message. If **Messages per request** is 40 and the chat has 95 messages, the extension performs three sequential updates: 40, 40, then 15. Every result becomes the previous summary for the next batch, producing one evolving continuity record rather than unrelated summaries.
+Simple manual mode is enabled by default. One button press makes one request and folds up to **Messages added per update** new messages into the saved continuity summary. The first press starts from only that many recent messages.
+
+With simple manual mode disabled, advanced batching can start at the oldest usable message. If the request size is 40 and the chat has 95 messages, it can perform three sequential updates: 40, 40, then 15. Every result becomes the previous summary for the next batch, producing one evolving continuity record rather than unrelated summaries.
 
 Each completed batch is saved immediately. If the provider errors or a usage limit interrupts batch three, pressing **Summarize now** again resumes after the first 80 messages.
 
@@ -48,13 +51,15 @@ Automatic updates count both user and character messages. Set **Auto-update afte
 
 ### Cheap-start example
 
-To begin an existing chat using only its most recent ten usable messages, set:
+The easiest option is to leave **Simple manual mode** enabled and set **Messages added per update** to `10`. Nothing runs automatically. The first click reads only the latest ten messages, and each later click folds up to ten waiting messages into the saved summary using one model request.
 
-- **Initial/rebuild lookback:** `10`
-- **Messages per request:** `10`
+Simple manual mode also avoids paying to regenerate an already-current summary: pressing the button with no new messages reports that it is already up to date.
+
+For advanced batching instead, disable simple manual mode and set:
+
+- **Starting/rebuild history:** `10`
+- **Messages added per update:** `10`
 - **Maximum requests per run:** `1`
-
-The first request contains only those ten messages. Later requests evolve that saved summary using new messages; they do not go back and summarize the skipped history. The request cap also prevents one manual or automatic run from processing multiple paid batches. Set either cost control to `0` for unlimited/full-history behaviour.
 
 ## Editing, swiping, and deleting
 
