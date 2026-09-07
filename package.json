@@ -1,0 +1,8 @@
+{
+  "name": "sillytavern-independent-summarizer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test && node --check index.js"
+  }
+}
