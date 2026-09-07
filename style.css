@@ -1,0 +1,38 @@
+#independent_summarizer_settings .is_hint {
+    opacity: 0.8;
+    margin: 0.5em 0 1em 0;
+}
+#independent_summarizer_settings .is_row {
+    display: flex;
+    gap: 0.5em;
+    align-items: center;
+}
+#independent_summarizer_settings .flex1 {
+    flex: 1;
+}
+#independent_summarizer_settings .is_grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.7em;
+    margin: 0.7em 0;
+}
+#independent_summarizer_settings .is_grid label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25em;
+}
+#independent_summarizer_settings .is_buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5em;
+    margin: 0.8em 0;
+}
+#independent_summarizer_settings textarea {
+    width: 100%;
+    resize: vertical;
+}
+@media (max-width: 700px) {
+    #independent_summarizer_settings .is_grid {
+        grid-template-columns: 1fr;
+    }
+}

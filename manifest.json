@@ -1,0 +1,16 @@
+{
+  "display_name": "Independent Summarizer",
+  "loading_order": 50,
+  "requires": [
+    "connection-manager"
+  ],
+  "optional": [],
+  "js": "index.js",
+  "css": "style.css",
+  "author": "Ellie / ChatGPT",
+  "version": "0.1.0",
+  "homePage": "None",
+  "hooks": {
+    "activate": "init"
+  }
+}
