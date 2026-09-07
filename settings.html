@@ -24,6 +24,14 @@
                     <input id="is_max_messages" class="text_pole" type="number" min="0" max="1000" step="1">
                     <small>0 sends all waiting messages in one request.</small>
                 </label>
+                <label for="is_initial_lookback">Initial/rebuild lookback
+                    <input id="is_initial_lookback" class="text_pole" type="number" min="0" max="100000" step="1">
+                    <small>Use only the latest N messages when starting or rebuilding. 0 uses the whole chat.</small>
+                </label>
+                <label for="is_max_batches">Maximum requests per run
+                    <input id="is_max_batches" class="text_pole" type="number" min="0" max="1000" step="1">
+                    <small>Cost guardrail. 1 allows one request per click or auto-run; 0 processes every waiting batch.</small>
+                </label>
                 <label for="is_auto_every">Auto-update after N new messages
                     <input id="is_auto_every" class="text_pole" type="number" min="0" max="1000" step="1">
                     <small>0 disables automatic updates.</small>
