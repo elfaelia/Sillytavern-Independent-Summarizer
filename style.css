@@ -6,6 +6,21 @@
 #independent_summarizer_settings .is_grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75em; margin: 0.8em 0; }
 #independent_summarizer_settings .is_grid label { display: flex; flex-direction: column; gap: 0.25em; }
 #independent_summarizer_settings textarea { width: 100%; resize: vertical; }
+#independent_summarizer_settings small { display: block; margin-top: 0.25em; opacity: 0.72; line-height: 1.35; }
+#independent_summarizer_settings .is_simple_card {
+    margin: 1em 0;
+    padding: 0.9em;
+    border: 1px solid color-mix(in srgb, var(--SmartThemeBorderColor) 70%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--SmartThemeBlurTintColor) 82%, transparent);
+}
+#independent_summarizer_settings .is_mode_explanation { margin: 0.45em 0 0.8em; line-height: 1.4; opacity: 0.88; }
+#independent_summarizer_settings .is_short_number { width: min(9em, 100%); }
+#independent_summarizer_settings .is_primary_action { width: 100%; margin-top: 0.9em; justify-content: center; }
+#independent_summarizer_settings .is_advanced { margin: 1em 0; }
+#independent_summarizer_settings .is_advanced > summary { cursor: pointer; padding: 0.7em 0; }
+#independent_summarizer_settings .is_advanced_body { padding: 0.2em 0.25em 0.8em; }
+#independent_summarizer_settings .is_advanced_body > label:not(:first-child) { display: block; margin-top: 0.9em; }
 #independent_summarizer_settings .is_status { min-height: 1.4em; margin: 0.6em 0; opacity: 0.85; }
 #independent_summarizer_settings .is_status[data-kind="warning"] { color: var(--SmartThemeQuoteColor); }
 #independent_summarizer_settings .is_status[data-kind="error"] { color: var(--warning-color, #ff6b6b); }
