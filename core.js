@@ -1,7 +1,7 @@
-export const STATE_VERSION = 2;
+export const STATE_VERSION = 3;
 
 export function createEmptyState() {
-    return { version: STATE_VERSION, summary: '', coveredCount: 0, coveredSignature: signatureForMessages([]), updatedAt: 0, stale: false, staleReason: '' };
+    return { version: STATE_VERSION, summary: '', coveredStart: 0, coveredCount: 0, coveredSignature: signatureForMessages([]), updatedAt: 0, stale: false, staleReason: '' };
 }
 
 export function normaliseChat(chat = [], names = {}) {
@@ -32,9 +32,12 @@ export function signatureForMessages(messages) {
 
 export function reconcileState(state, messages) {
     const next = { ...createEmptyState(), ...state };
+    const coveredStart = Number.isInteger(Number(next.coveredStart)) ? Math.max(0, Number(next.coveredStart)) : 0;
     const coveredCount = Number.isInteger(Number(next.coveredCount)) ? Math.max(0, Number(next.coveredCount)) : 0;
-    const invalid = coveredCount > messages.length
-        || (coveredCount > 0 && next.coveredSignature !== signatureForMessages(messages.slice(0, coveredCount)));
+    const invalid = coveredStart > coveredCount
+        || coveredCount > messages.length
+        || (coveredCount > coveredStart && next.coveredSignature !== signatureForMessages(messages.slice(coveredStart, coveredCount)));
+    next.coveredStart = coveredStart;
     next.coveredCount = coveredCount;
     if (invalid) {
         next.stale = true;
@@ -43,13 +46,22 @@ export function reconcileState(state, messages) {
     return { state: next, changed: invalid && !state?.stale };
 }
 
-export function getPendingBatches(messages, coveredCount, maxMessages) {
+export function getInitialStartIndex(messageCount, initialLookback) {
+    const lookback = Math.max(0, Number(initialLookback) || 0);
+    return lookback ? Math.max(0, messageCount - lookback) : 0;
+}
+
+export function getPendingBatches(messages, coveredCount, maxMessages, maxBatches = 0) {
     const pending = messages.slice(Math.max(0, coveredCount));
     const size = Math.max(0, Number(maxMessages) || 0);
+    const limit = Math.max(0, Number(maxBatches) || 0);
     if (!pending.length) return [];
     if (!size) return [pending];
     const batches = [];
-    for (let index = 0; index < pending.length; index += size) batches.push(pending.slice(index, index + size));
+    for (let index = 0; index < pending.length; index += size) {
+        if (limit && batches.length >= limit) break;
+        batches.push(pending.slice(index, index + size));
+    }
     return batches;
 }
 
