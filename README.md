@@ -9,6 +9,8 @@ The summarization request sends only the extension's prompt, the previously save
 - Dedicated Connection Profile/model for summaries
 - Manual **Summarize now** and optional automatic updates
 - Oldest-first, resumable batching for long chats and first-run backlogs
+- Optional initial/rebuild lookback, so an existing chat can start from only its latest messages
+- Maximum requests per run as a provider-cost guardrail
 - Per-chat persistent summary state
 - Editable, saveable, and clearable summary
 - Target words, maximum output tokens, messages per request, injection depth, and injection template controls
@@ -38,15 +40,25 @@ You may leave SillyTavern's built-in Summarize extension disabled to avoid injec
 
 ## Continuity and batching
 
-The first run starts at the oldest usable chat message. If **Messages per request** is 40 and the chat has 95 messages, the extension performs three sequential updates: 40, 40, then 15. Every result becomes the previous summary for the next batch, producing one evolving continuity record rather than unrelated summaries.
+By default, the first run starts at the oldest usable chat message. If **Messages per request** is 40 and the chat has 95 messages, the extension performs three sequential updates: 40, 40, then 15. Every result becomes the previous summary for the next batch, producing one evolving continuity record rather than unrelated summaries.
 
 Each completed batch is saved immediately. If the provider errors or a usage limit interrupts batch three, pressing **Summarize now** again resumes after the first 80 messages.
 
 Automatic updates count both user and character messages. Set **Auto-update after N new messages** to `0` to disable them.
 
+### Cheap-start example
+
+To begin an existing chat using only its most recent ten usable messages, set:
+
+- **Initial/rebuild lookback:** `10`
+- **Messages per request:** `10`
+- **Maximum requests per run:** `1`
+
+The first request contains only those ten messages. Later requests evolve that saved summary using new messages; they do not go back and summarize the skipped history. The request cap also prevents one manual or automatic run from processing multiple paid batches. Set either cost control to `0` for unlimited/full-history behaviour.
+
 ## Editing, swiping, and deleting
 
-The extension stores a signature of the exact message prefix covered by the summary. Editing, swiping, or deleting a covered message marks the summary stale and removes it from RP prompt injection. The text remains visible. The next manual or automatic run rebuilds oldest-first from the current chat.
+The extension stores a signature of the exact message range covered by the summary. Editing, swiping, or deleting a covered message marks the summary stale and removes it from RP prompt injection. The text remains visible. The next manual or automatic run rebuilds using the configured initial/rebuild lookback.
 
 Edits to messages that have not been summarized yet do not invalidate existing memory.
 
