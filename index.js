@@ -19,7 +19,7 @@ Do not continue the scene or speak to the player. Describe violent, sexual, dist
 Aim for roughly {{words}} words. Return only the complete updated continuity summary.`;
 
 const defaults = {
-    profileId: '', targetWords: 350, maxTokens: 900, maxMessages: 40, initialLookback: 0, maxBatchesPerRun: 0, autoEvery: 0,
+    profileId: '', targetWords: 350, maxTokens: 900, maxMessages: 40, initialLookback: 0, maxBatchesPerRun: 0, autoEvery: 0, simpleManual: true,
     inject: true, injectionDepth: 4, prompt: defaultPrompt, template: '[Story memory:\n{{summary}}]',
 };
 
@@ -82,7 +82,8 @@ function refreshUi() {
     if (!context.chatId) {
         setStatus('Open a chat to create or inject a summary.');
     } else if (state.stale) {
-        const rebuildScope = Number(settings().initialLookback) > 0 ? `the latest ${Number(settings().initialLookback)} messages` : 'the beginning';
+        const configuredLookback = settings().simpleManual ? settings().maxMessages : settings().initialLookback;
+        const rebuildScope = Number(configuredLookback) > 0 ? `the latest ${Number(configuredLookback)} messages` : 'the beginning';
         setStatus(`${state.staleReason} The next summary run will rebuild from ${rebuildScope}.`, 'warning');
     } else {
         const waiting = Math.max(0, messages.length - state.coveredCount);
@@ -179,6 +180,7 @@ async function migratePrototypeState() {
 
 async function executeSummary({ automatic = false } = {}) {
     const config = settings();
+    if (automatic && config.simpleManual) return { updated: false, batches: 0 };
     if (!config.profileId) throw new Error('Choose a Connection Profile first.');
     const context = getContext();
     if (!context.chatId) throw new Error('Open a chat first.');
@@ -187,16 +189,14 @@ async function executeSummary({ automatic = false } = {}) {
     if (!allMessages.length) throw new Error('This chat has no usable messages to summarize.');
 
     const state = reconcileState(getState(context), allMessages).state;
+    const simpleLimit = Math.max(1, Number(config.maxMessages) || 1);
+    const initialLookback = config.simpleManual ? simpleLimit : config.initialLookback;
+    const batchSize = config.simpleManual ? simpleLimit : config.maxMessages;
+    const maxBatches = config.simpleManual ? 1 : config.maxBatchesPerRun;
     let summary = state.stale ? '' : state.summary;
-    let coveredStart = state.stale || !state.summary ? getInitialStartIndex(allMessages.length, config.initialLookback) : state.coveredStart;
+    let coveredStart = state.stale || !state.summary ? getInitialStartIndex(allMessages.length, initialLookback) : state.coveredStart;
     let coveredCount = state.stale || !state.summary ? coveredStart : state.coveredCount;
-    let batches = getPendingBatches(allMessages, coveredCount, config.maxMessages, config.maxBatchesPerRun);
-    if (!automatic && !batches.length) {
-        summary = '';
-        coveredStart = getInitialStartIndex(allMessages.length, config.initialLookback);
-        coveredCount = coveredStart;
-        batches = getPendingBatches(allMessages, coveredCount, config.maxMessages, config.maxBatchesPerRun);
-    }
+    const batches = getPendingBatches(allMessages, coveredCount, batchSize, maxBatches);
     if (!batches.length) return { updated: false, batches: 0 };
 
     activeController = new AbortController();
@@ -264,7 +264,8 @@ async function saveEditedSummary() {
     if (!text) return clearSummary();
     const messages = getMessages(context);
     const state = reconcileState(getState(context), messages).state;
-    const coveredStart = state.stale ? getInitialStartIndex(messages.length, settings().initialLookback) : state.coveredStart;
+    const configuredLookback = settings().simpleManual ? settings().maxMessages : settings().initialLookback;
+    const coveredStart = state.stale ? getInitialStartIndex(messages.length, configuredLookback) : state.coveredStart;
     await saveCheckpoint(context, text, coveredStart, state.stale ? coveredStart : state.coveredCount, messages);
     toastr.success('Edited summary saved.', 'Independent Summarizer');
 }
@@ -287,7 +288,7 @@ function scheduleAutoSummary() {
     autoTimer = setTimeout(async () => {
         const config = settings();
         const interval = Math.max(0, Number(config.autoEvery) || 0);
-        if (!interval || !config.profileId || activeRun) return;
+        if (config.simpleManual || !interval || !config.profileId || activeRun) return;
         const state = await reconcileCurrentState();
         const count = getMessages().length - (state.stale ? 0 : state.coveredCount);
         if (count >= interval) await runSummary({ automatic: true });
@@ -316,6 +317,18 @@ function bindSetting(id, event, key, convert = value => value) {
     });
 }
 
+function updateModeUi() {
+    const simple = Boolean(settings().simpleManual);
+    for (const element of document.querySelectorAll('#independent_summarizer_settings .is_batch_advanced')) element.hidden = simple;
+    const note = document.getElementById('is_simple_explanation');
+    if (note) {
+        const limit = Math.max(1, Number(settings().maxMessages) || 1);
+        note.textContent = simple
+            ? `Nothing happens automatically. Each press makes one summarizer request and adds up to ${limit} new messages. The first press starts with only the latest ${limit}.`
+            : 'Advanced batching is enabled. The controls below decide the starting history, number of requests, and automatic timing.';
+    }
+}
+
 async function renderSettings() {
     if (document.getElementById('independent_summarizer_settings')) return;
     const host = document.getElementById('extensions_settings');
@@ -327,6 +340,7 @@ async function renderSettings() {
         document.getElementById(id).value = value;
     }
     document.getElementById('is_inject').checked = config.inject;
+    document.getElementById('is_simple_manual').checked = config.simpleManual;
     renderProfiles();
     bindSetting('is_profile', 'change', 'profileId', element => element.value);
     bindSetting('is_prompt', 'input', 'prompt', element => element.value);
@@ -339,10 +353,18 @@ async function renderSettings() {
     bindSetting('is_inject', 'change', 'inject', element => element.checked);
     bindSetting('is_template', 'input', 'template', element => element.value);
     bindSetting('is_depth', 'input', 'injectionDepth', element => Number(element.value));
+    document.getElementById('is_simple_manual')?.addEventListener('change', event => {
+        settings().simpleManual = event.target.checked;
+        saveSettingsDebounced();
+        updateModeUi();
+        scheduleAutoSummary();
+    });
+    document.getElementById('is_max_messages')?.addEventListener('input', updateModeUi);
     document.getElementById('is_refresh_profiles')?.addEventListener('click', renderProfiles);
     document.getElementById('is_summarize_now')?.addEventListener('click', () => runSummary());
     document.getElementById('is_save_edit')?.addEventListener('click', saveEditedSummary);
     document.getElementById('is_clear')?.addEventListener('click', clearSummary);
+    updateModeUi();
     refreshUi();
 }
 
